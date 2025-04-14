@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Боковая панель -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="search-container">
+                    <img width="20" height="20" class="search-icon" src="https://img.icons8.com/ios/50/search--v1.png" alt="search--v1"/>
+                    <input type="text" id="search-user-input" placeholder="Поиск пользователей..." class="search-input">
+                    <div id="search-results" class="search-results"></div>
+                </div>
+            </div>
+            <div class="group-list" id="chat-list">
+                <!-- Личные чаты будут добавляться сюда динамически -->
+            </div>
+            <div class="sidebar-footer">
+                <button id="logout-btn" class="logout-btn">🚪 Выйти</button>
+            </div>
+        </div>
+
+        <!-- Основной чат -->
+        <div class="chat-main">
+            <!-- Шапка чата -->
+            <div class="chat-header">
+                <h2 id="chat-title">Выберите чат</h2>
+                <div class="chat-actions">
+                    <button id="clear-history-btn">🧹 Очистить историю</button>
+                </div>
+            </div>
+
+            <!-- Сообщения -->
+            <div id="chat-messages" class="chat-messages"></div>
+
+            <!-- Форма отправки сообщений -->
+            <form id="chat-form" class="chat-form">
+                <input type="text" id="message-input" placeholder="Напишите сообщение..." required>
+                <button type="submit">➡️</button>
+            </form>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
