@@ -354,7 +354,7 @@ body::after {
     margin: 10px 0;
     border: none;
     border-radius: 8px;
-    background: #252F48;
+    background: #515870;
     color: #fff;
     font-size: 16px;
 }
@@ -369,7 +369,7 @@ body::after {
     margin: 20px 0;
     border: none;
     border-radius: 8px;
-    background: #3498db;
+    background: #3D5B97;
     color: #fff;
     font-size: 16px;
     cursor: pointer;

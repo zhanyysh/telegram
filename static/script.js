@@ -237,7 +237,6 @@ if (document.getElementById("chat-form")) {
     }
 
     // Отображение личного сообщения
-    // Отображение личного сообщения
     function displayPrivateMessage(msg) {
         const div = document.createElement("div");
         div.className = "chat-message";
