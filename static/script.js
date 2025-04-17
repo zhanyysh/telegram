@@ -220,26 +220,6 @@ if (document.getElementById("chat-form")) {
         }
     }
 
-    async function markMessagesAsRead(chatId) {
-        try {
-            const response = await fetch(`/mark-messages-read/${chatId}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`,
-                },
-            });
-            if (response.ok) {
-                updateUnreadCount(chatId, 0); // Обновляем счетчик непрочитанных
-                console.log(`Сообщения в чате ${chatId} помечены как прочитанные`);
-            } else {
-                console.error("Ошибка при обновлении статуса прочитанных сообщений:", await response.json());
-            }
-        } catch (error) {
-            console.error("Ошибка при вызове mark-messages-read:", error);
-        }
-    }
-
     async function switchChat(type, id, name) {
         if (isSwitchingChat) return;
         isSwitchingChat = true;
@@ -254,10 +234,8 @@ if (document.getElementById("chat-form")) {
         chatMessages.innerHTML = "";
         lastUnreadDivider = null; // Сбрасываем разделитель
 
-        // Помечаем сообщения как прочитанные и ждем завершения
-        await markMessagesAsRead(id);
         await loadPrivateMessages(id);
-
+        updateUnreadCount(id, 0);
         isSwitchingChat = false;
     }
 
@@ -271,33 +249,16 @@ if (document.getElementById("chat-form")) {
                 },
             });
             const messages = await response.json();
-            chatMessages.innerHTML = ""; // Очищаем сообщения
-            lastUnreadDivider = null; // Сбрасываем разделитель
-
-            // Проверяем, есть ли непрочитанные сообщения
-            const hasUnread = messages.some(msg => msg.sender !== username && msg.is_read === 0);
-            if (hasUnread) {
-                // Если есть непрочитанные сообщения, повторно вызываем mark-messages-read
-                console.log(`Обнаружены непрочитанные сообщения в чате ${chatId}, повторный вызов mark-messages-read`);
-                await markMessagesAsRead(chatId);
-                // Перезагружаем сообщения после обновления статуса
-                const updatedResponse = await fetch(`/private-messages/${chatId}`, {
-                    method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`,
-                    },
-                });
-                messages.length = 0; // Очищаем старые данные
-                messages.push(...(await updatedResponse.json()));
-            }
-
-            messages.forEach((msg) => {
+            let hasUnread = false;
+            messages.forEach((msg, index) => {
                 console.log(`Сообщение: sender=${msg.sender}, is_read=${msg.is_read}, current_user=${username}`);
+                if (!hasUnread && msg.sender !== username && msg.is_read === 0) {
+                    addUnreadDivider();
+                    hasUnread = true;
+                }
                 displayPrivateMessage(msg);
             });
             console.log(`Загружено ${messages.length} сообщений для чата ${chatId}`);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
         } catch (error) {
             console.error("Ошибка загрузки личных сообщений:", error);
         }
@@ -439,8 +400,6 @@ if (document.getElementById("chat-form")) {
                     addUnreadDivider();
                 }
                 displayPrivateMessage(msg);
-                // Помечаем сообщение как прочитанное
-                markMessagesAsRead(currentChat.id);
             }
             if (msg.sender !== username && currentChat.id !== msg.chat_id) {
                 const chatItem = chatList.querySelector(`[data-chat-id="${msg.chat_id}"]`);
@@ -474,9 +433,20 @@ if (document.getElementById("chat-form")) {
             messageInput.value = "";
     
             // Вызываем эндпоинт для обновления is_read
-            await markMessagesAsRead(currentChat.id);
-            lastUnreadDivider?.remove();
-            lastUnreadDivider = null;
+            try {
+                await fetch(`/mark-messages-read/${currentChat.id}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+                // Обновляем отображение (удаляем разделитель, так как все сообщения теперь прочитаны)
+                lastUnreadDivider?.remove();
+                lastUnreadDivider = null;
+            } catch (error) {
+                console.error("Ошибка при обновлении статуса прочитанных сообщений:", error);
+            }
         } else {
             showFlashMessage("Выберите чат для отправки сообщения", "danger");
         }

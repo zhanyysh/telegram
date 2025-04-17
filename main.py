@@ -185,9 +185,12 @@ async def get_private_messages(chat_id: int, token: dict = Depends(verify_token)
         if not chat:
             raise HTTPException(status_code=403, detail="Нет доступа к этому чату")
         
+        # Обновляем статус is_read для сообщений, которые пользователь видит
+        # conn.execute("UPDATE private_messages SET is_read = 1 WHERE chat_id = ? AND sender != ?", (chat_id, username))
+        # conn.commit()
+        
         cursor = conn.execute("SELECT * FROM private_messages WHERE chat_id = ? ORDER BY timestamp", (chat_id,))
         messages = [dict(row) for row in cursor.fetchall()]
-        print(f"Сообщения для чата {chat_id}: {[msg['sender'] + ': ' + str(msg['is_read']) for msg in messages]}")
     return messages
 
 @app.post("/mark-messages-read/{chat_id}")
@@ -199,24 +202,8 @@ async def mark_messages_read(chat_id: int, token: dict = Depends(verify_token)):
         if not chat:
             raise HTTPException(status_code=403, detail="Нет доступа к этому чату")
         
-        # Логируем состояние до обновления
-        cursor = conn.execute("SELECT * FROM private_messages WHERE chat_id = ? AND sender != ?", (chat_id, username))
-        messages_before = [dict(row) for row in cursor.fetchall()]
-        print(f"Перед обновлением в чате {chat_id} для пользователя {username}: {messages_before}")
-
-        # Обновляем статус is_read
-        cursor = conn.execute("UPDATE private_messages SET is_read = 1 WHERE chat_id = ? AND sender != ?", (chat_id, username))
+        conn.execute("UPDATE private_messages SET is_read = 1 WHERE chat_id = ? AND sender != ?", (chat_id, username))
         conn.commit()
-
-        # Логируем количество обновленных строк
-        updated_rows = cursor.rowcount
-        print(f"Обновлено {updated_rows} строк в чате {chat_id} для пользователя {username}")
-
-        # Логируем состояние после обновления
-        cursor = conn.execute("SELECT * FROM private_messages WHERE chat_id = ? AND sender != ?", (chat_id, username))
-        messages_after = [dict(row) for row in cursor.fetchall()]
-        print(f"После обновления в чате {chat_id} для пользователя {username}: {messages_after}")
-
     return {"message": "Сообщения отмечены как прочитанные"}
 
 @app.post("/clear-private-history/{chat_id}")
@@ -344,8 +331,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         (chat_id, sender, content, timestamp, 0)
                     )
                     # Обновляем is_read для всех сообщений в чате от других пользователей
-                    cursor = conn.execute("UPDATE private_messages SET is_read = 1 WHERE chat_id = ? AND sender != ?", (chat_id, sender))
-                    print(f"WebSocket: Обновлено {cursor.rowcount} строк для чата {chat_id} (sender: {sender})")
+                    conn.execute("UPDATE private_messages SET is_read = 1 WHERE chat_id = ? AND sender != ?", (chat_id, sender))
                     conn.commit()
                 
                 for client_id, client_info in connected_clients.items():
