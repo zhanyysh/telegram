@@ -424,3 +424,35 @@ if (document.getElementById("chat-form")) {
         }
     });
 }
+//my-profile
+document.getElementById('edit-btn').addEventListener('click', () => {
+    alert('Edit functionality coming soon!');
+});
+
+document.getElementById('close-btn').addEventListener('click', () => {
+    window.location.href = '/chat'; // Перенаправляем на страницу чата
+});
+//edit-profile
+document.addEventListener('DOMContentLoaded', () => {
+    const editBtn = document.getElementById('edit-btn');
+    const closeBtn = document.getElementById('close-btn');
+    const backBtn = document.getElementById('back-btn');
+
+    if (editBtn) {
+        editBtn.addEventListener('click', () => {
+            window.location.href = '/edit-profile';
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            window.location.href = '/my-profile';
+        });
+    }
+
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            window.location.href = '/my-profile';
+        });
+    }
+});

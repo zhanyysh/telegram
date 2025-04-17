@@ -8,7 +8,8 @@ import smtplib
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, Request, Form
+from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer
@@ -19,6 +20,7 @@ app = FastAPI()
 
 # Монтируем статические файлы
 app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 # Настройки для JWT
 SECRET_KEY = "your_secret_key"
@@ -41,13 +43,14 @@ def init_db():
     with get_db() as conn:
         # Таблица пользователей
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL UNIQUE,
-                username TEXT NOT NULL UNIQUE,
-                password TEXT NOT NULL
-            )
-        """)
+        CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        reset_token TEXT
+        )
+    """)
         # Таблица личных чатов
         conn.execute("""
             CREATE TABLE IF NOT EXISTS private_chats (
@@ -124,6 +127,13 @@ def send_reset_email(email: str, token: str):
 
 # WebSocket соединения
 connected_clients = {}
+
+# Тестовые данные для профиля (временное хранилище, вместо базы данных)
+profile_data = {
+    "username": "Aktan",
+    "mobile": "+996705450535",
+    "date_of_birth": "2006-12-02"
+}
 
 # Маршруты
 @app.get("/", response_class=HTMLResponse)
@@ -315,6 +325,61 @@ async def websocket_endpoint(websocket: WebSocket):
                         }))
     except WebSocketDisconnect:
         del connected_clients[client_id]
+
+@app.get("/my-profile", response_class=HTMLResponse)
+async def my_profile(request: Request):
+    global profile_data
+    username = profile_data["username"]
+    mobile = profile_data["mobile"]
+    date_of_birth = profile_data["date_of_birth"]
+    
+    # Вычисляем возраст
+    dob = datetime.strptime(date_of_birth, "%Y-%m-%d")
+    today = datetime.now()
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    
+    # Рендерим шаблон my-profile.html
+    return templates.TemplateResponse("my-profile.html", {
+        "request": request,
+        "username": username,
+        "mobile": mobile,
+        "date_of_birth": dob.strftime("%b %d, %Y"),  # Формат: Nov 20, 2006
+        "age": age
+    })
+
+@app.get("/edit-profile", response_class=HTMLResponse)
+async def edit_profile(request: Request):
+    global profile_data
+    username = profile_data["username"]
+    mobile = profile_data["mobile"]
+    date_of_birth = profile_data["date_of_birth"]
+    
+    # Рендерим шаблон edit-profile.html
+    return templates.TemplateResponse("edit-profile.html", {
+        "request": request,
+        "username": username,
+        "mobile": mobile,
+        "date_of_birth_raw": date_of_birth  # Формат для input[type="date"]
+    })
+
+@app.post("/edit-profile", response_class=RedirectResponse)
+async def update_profile(
+    username: str = Form(...),
+    mobile: str = Form(...),
+    date_of_birth: str = Form(...)
+):
+    global profile_data
+    
+    # Обновляем данные в profile_data
+    profile_data["username"] = username
+    profile_data["mobile"] = mobile
+    profile_data["date_of_birth"] = date_of_birth
+    
+    # Здесь можно добавить сохранение в базу данных в будущем
+    print(f"Updated profile: username={username}, mobile={mobile}, date_of_birth={date_of_birth}")
+    
+    # Перенаправляем обратно на страницу профиля
+    return RedirectResponse(url="/my-profile", status_code=303)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
