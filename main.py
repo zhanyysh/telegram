@@ -57,7 +57,7 @@ def init_db():
                 UNIQUE(user1, user2)
             )
         """)
-        # Таблица сообщений личных чатов
+        # Таблица сообщений личных чатов (добавлено поле is_read)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS private_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +65,7 @@ def init_db():
                 sender TEXT NOT NULL,
                 content TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
+                is_read INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY (chat_id) REFERENCES private_chats(id)
             )
         """)
@@ -78,9 +79,9 @@ class UserCreate(BaseModel):
     username: str
     password: str
 
-# Модель для входа
+# Модель для входа (изменено: username вместо email)
 class UserLogin(BaseModel):
-    email: str
+    username: str
     password: str
 
 # Модель для сброса пароля
@@ -94,6 +95,7 @@ class PrivateMessage(BaseModel):
     sender: str
     content: str
     timestamp: str
+    is_read: int
 
 # Настройка OAuth2 для извлечения токена
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/signin", auto_error=False)
@@ -149,7 +151,7 @@ async def signup(user: UserCreate):
         )
         conn.commit()
     return {"message": "Регистрация успешна"}
-
+    
 @app.get("/signin", response_class=HTMLResponse)
 async def get_signin():
     with open("templates/signin.html", encoding="utf-8") as f:
@@ -158,10 +160,10 @@ async def get_signin():
 @app.post("/signin")
 async def signin(user: UserLogin):
     with get_db() as conn:
-        cursor = conn.execute("SELECT * FROM users WHERE email = ?", (user.email,))
+        cursor = conn.execute("SELECT * FROM users WHERE username = ?", (user.username,))
         db_user = cursor.fetchone()
         if not db_user or not bcrypt.checkpw(user.password.encode(), db_user["password"].encode()):
-            raise HTTPException(status_code=401, detail="Неверный email или пароль")
+            raise HTTPException(status_code=401, detail="Неверное имя пользователя или пароль")
         
         token = jwt.encode({
             "sub": db_user["username"],
@@ -185,7 +187,37 @@ async def get_private_messages(chat_id: int, token: dict = Depends(verify_token)
         
         cursor = conn.execute("SELECT * FROM private_messages WHERE chat_id = ? ORDER BY timestamp", (chat_id,))
         messages = [dict(row) for row in cursor.fetchall()]
+        print(f"Сообщения для чата {chat_id}: {[msg['sender'] + ': ' + str(msg['is_read']) for msg in messages]}")
     return messages
+
+@app.post("/mark-messages-read/{chat_id}")
+async def mark_messages_read(chat_id: int, token: dict = Depends(verify_token)):
+    username = token["sub"]
+    with get_db() as conn:
+        cursor = conn.execute("SELECT * FROM private_chats WHERE id = ? AND (user1 = ? OR user2 = ?)", (chat_id, username, username))
+        chat = cursor.fetchone()
+        if not chat:
+            raise HTTPException(status_code=403, detail="Нет доступа к этому чату")
+        
+        # Логируем состояние до обновления
+        cursor = conn.execute("SELECT * FROM private_messages WHERE chat_id = ? AND sender != ?", (chat_id, username))
+        messages_before = [dict(row) for row in cursor.fetchall()]
+        print(f"Перед обновлением в чате {chat_id} для пользователя {username}: {messages_before}")
+
+        # Обновляем статус is_read
+        cursor = conn.execute("UPDATE private_messages SET is_read = 1 WHERE chat_id = ? AND sender != ?", (chat_id, username))
+        conn.commit()
+
+        # Логируем количество обновленных строк
+        updated_rows = cursor.rowcount
+        print(f"Обновлено {updated_rows} строк в чате {chat_id} для пользователя {username}")
+
+        # Логируем состояние после обновления
+        cursor = conn.execute("SELECT * FROM private_messages WHERE chat_id = ? AND sender != ?", (chat_id, username))
+        messages_after = [dict(row) for row in cursor.fetchall()]
+        print(f"После обновления в чате {chat_id} для пользователя {username}: {messages_after}")
+
+    return {"message": "Сообщения отмечены как прочитанные"}
 
 @app.post("/clear-private-history/{chat_id}")
 async def clear_private_history(chat_id: int, token: dict = Depends(verify_token)):
@@ -264,6 +296,13 @@ async def get_private_chats(token: dict = Depends(verify_token)):
             (username, username)
         )
         chats = [dict(row) for row in cursor.fetchall()]
+        # Добавляем количество непрочитанных сообщений для каждого чата
+        for chat in chats:
+            cursor = conn.execute(
+                "SELECT COUNT(*) as unread_count FROM private_messages WHERE chat_id = ? AND sender != ? AND is_read = 0",
+                (chat["id"], username)
+            )
+            chat["unread_count"] = cursor.fetchone()["unread_count"]
     return {"chats": chats}
 
 @app.get("/get-or-create-chat/{other_user}")
@@ -299,10 +338,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 timestamp = datetime.now(timezone.utc).isoformat()
                 
                 with get_db() as conn:
+                    # Сохраняем сообщение
                     conn.execute(
-                        "INSERT INTO private_messages (chat_id, sender, content, timestamp) VALUES (?, ?, ?, ?)",
-                        (chat_id, sender, content, timestamp)
+                        "INSERT INTO private_messages (chat_id, sender, content, timestamp, is_read) VALUES (?, ?, ?, ?, ?)",
+                        (chat_id, sender, content, timestamp, 0)
                     )
+                    # Обновляем is_read для всех сообщений в чате от других пользователей
+                    cursor = conn.execute("UPDATE private_messages SET is_read = 1 WHERE chat_id = ? AND sender != ?", (chat_id, sender))
+                    print(f"WebSocket: Обновлено {cursor.rowcount} строк для чата {chat_id} (sender: {sender})")
                     conn.commit()
                 
                 for client_id, client_info in connected_clients.items():
@@ -311,10 +354,11 @@ async def websocket_endpoint(websocket: WebSocket):
                             "chat_id": chat_id,
                             "sender": sender,
                             "content": content,
-                            "timestamp": timestamp
+                            "timestamp": timestamp,
+                            "is_read": 0
                         }))
     except WebSocketDisconnect:
         del connected_clients[client_id]
-
+        
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
