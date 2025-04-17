@@ -10,16 +10,16 @@
     <div class="container">
         <div class="form-box">
             <h2>Вход</h2>
-            <div id="flash-messages"></div>
             <form id="signin-form">
-                <input type="email" name="email" placeholder="Email" required>
+                <input type="text" name="username" placeholder="Имя пользователя" required>
                 <input type="password" name="password" placeholder="Пароль" required>
-                <a href="/forgot-password" class="link">Забыли пароль?</a>
                 <button type="submit">Войти</button>
-                <p class="link-text">Нет аккаунта? <a href="/signup" class="link">Зарегистрироваться</a></p>
             </form>
+            <a href="/forgot-password" class="link">Забыли пароль?</a>
+            <p class="link-text">Нет аккаунта? <a href="/signup" class="link">Зарегистрируйтесь</a></p>
         </div>
     </div>
+    <div id="flash-messages"></div>
     <script src="/static/script.js"></script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931b093d0a77c042',t:'MTc0NDg4MzYxNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

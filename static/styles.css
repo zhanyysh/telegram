@@ -41,14 +41,12 @@ body::after {
     pointer-events: none;
 }
 
-/* Основной контейнер чата */
 .chat-container {
     display: flex;
     width: 100%;
     height: 100%;
 }
 
-/* Боковая панель */
 .sidebar {
     width: 250px;
     background: #252F48;
@@ -75,7 +73,7 @@ body::after {
 
 .search-input {
     width: 100%;
-    padding: 10px 10px 10px 40px; /* Отступ слева для иконки */
+    padding: 10px 10px 10px 40px;
     border: 1px solid #252F48;
     border-radius: 8px;
     background: #515870;
@@ -93,7 +91,7 @@ body::after {
 }
 
 .search-input::placeholder {
-    color: #95a5a6; /* Более читаемый серый */
+    color: #95a5a6;
 }
 
 .search-icon {
@@ -107,7 +105,7 @@ body::after {
 
 .search-results {
     position: absolute;
-    top: 100%; /* Позиционируем под полем ввода */
+    top: 100%;
     left: 0;
     right: 0;
     max-height: 200px;
@@ -116,11 +114,11 @@ body::after {
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     z-index: 10;
-    display: none; /* По умолчанию скрыт */
+    display: none;
 }
 
 .search-results.active {
-    display: block; /* Показываем, когда есть результаты */
+    display: block;
 }
 
 .search-result-item {
@@ -133,12 +131,11 @@ body::after {
 }
 
 .search-result-item:last-child {
-    border-bottom: none; /* Убираем границу у последнего элемента */
+    border-bottom: none;
 }
 
 .search-result-item:hover {
     background: #252F48;
-    /* transform: translateX(5px);  */
 }
 
 .search-result-item .avatar {
@@ -162,7 +159,7 @@ body::after {
 }
 
 .search-result-item:hover .username {
-    color: #3498db; /* Цвет текста меняется при наведении */
+    color: #3498db;
 }
 
 .logout-btn {
@@ -209,14 +206,14 @@ body::after {
 }
 
 .unread-count {
-    background: #3498db;
+    background: #e74c3c;
     color: #fff;
     border-radius: 50%;
     padding: 2px 8px;
     font-size: 12px;
+    display: none;
 }
 
-/* Основной чат */
 .chat-main {
     flex: 1;
     display: flex;
@@ -264,6 +261,32 @@ body::after {
     margin-bottom: 15px;
     display: flex;
     flex-direction: column;
+    max-width: 70%;
+}
+
+.chat-message:not(.own-message) {
+    align-items: flex-start;
+}
+
+.chat-message:not(.own-message) .content {
+    background: #252F48;
+    color: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    word-wrap: break-word;
+}
+
+.chat-message.own-message {
+    align-items: flex-end;
+    margin-left: auto;
+}
+
+.chat-message.own-message .content {
+    background: #3498db;
+    color: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    word-wrap: break-word;
 }
 
 .chat-message .username {
@@ -272,19 +295,24 @@ body::after {
     margin-bottom: 5px;
 }
 
-.chat-message .content {
-    background: #252F48;
+.chat-message.own-message .username {
     color: #fff;
-    padding: 10px;
-    border-radius: 8px;
-    max-width: 70%;
-    word-wrap: break-word;
 }
 
 .chat-message .timestamp {
     font-size: 12px;
     color: #bdc3c7;
     margin-top: 5px;
+}
+
+.unread-divider {
+    text-align: center;
+    color: #e74c3c;
+    font-size: 14px;
+    margin: 10px 0;
+    padding: 5px;
+    border-top: 1px solid #e74c3c;
+    border-bottom: 1px solid #e74c3c;
 }
 
 .chat-form {
@@ -323,7 +351,6 @@ body::after {
     background: #2980b9;
 }
 
-/* Стили для остальных страниц (вход, регистрация, сброс пароля) */
 .container {
     display: flex;
     justify-content: center;
@@ -424,54 +451,4 @@ body::after {
 .group-item.active {
     background: #354469;
     border-left: 3px solid #3498db;
-}
-
-.chat-message {
-    margin-bottom: 15px;
-    display: flex;
-    flex-direction: column;
-    max-width: 70%;
-}
-
-/* Сообщения других пользователей (слева) */
-.chat-message:not(.own-message) {
-    align-items: flex-start;
-}
-
-.chat-message:not(.own-message) .content {
-    background: #252F48;
-    color: #fff;
-    padding: 10px;
-    border-radius: 8px;
-    word-wrap: break-word;
-}
-
-/* Сообщения текущего пользователя (справа) */
-.chat-message.own-message {
-    align-items: flex-end;
-    margin-left: auto;
-}
-
-.chat-message.own-message .content {
-    background: #3498db; /* Синий фон для своих сообщений */
-    color: #fff;
-    padding: 10px;
-    border-radius: 8px;
-    word-wrap: break-word;
-}
-
-.chat-message .username {
-    font-weight: bold;
-    color: #3498db;
-    margin-bottom: 5px;
-}
-
-.chat-message.own-message .username {
-    color: #fff; /* Белый цвет имени для своих сообщений */
-}
-
-.chat-message .timestamp {
-    font-size: 12px;
-    color: #bdc3c7;
-    margin-top: 5px;
 }

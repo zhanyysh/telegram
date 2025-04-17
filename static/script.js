@@ -1,4 +1,3 @@
-// Общие функции
 function showFlashMessage(message, category) {
     const flashDiv = document.getElementById("flash-messages");
     if (flashDiv) {
@@ -10,7 +9,6 @@ function showFlashMessage(message, category) {
     }
 }
 
-// Регистрация
 document.getElementById("signup-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -43,14 +41,15 @@ document.getElementById("signup-form")?.addEventListener("submit", async (e) => 
     }
 });
 
-// Вход
 document.getElementById("signin-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = {
-        email: formData.get("email"),
+        username: formData.get("username"),
         password: formData.get("password"),
     };
+
+    console.log("Отправляемые данные:", data);
 
     try {
         const response = await fetch("/signin", {
@@ -63,14 +62,19 @@ document.getElementById("signin-form")?.addEventListener("submit", async (e) => 
             localStorage.setItem("token", result.token);
             window.location.href = "/chat";
         } else {
-            showFlashMessage(result.detail, "danger");
+            console.log("Ошибка входа:", result);
+            if (response.status === 422) {
+                showFlashMessage("Ошибка: неверный формат данных. Проверьте введенные данные.", "danger");
+            } else {
+                showFlashMessage(result.detail || "Ошибка входа", "danger");
+            }
         }
     } catch (error) {
+        console.error("Ошибка сервера:", error);
         showFlashMessage("Ошибка сервера", "danger");
     }
 });
 
-// Запрос на восстановление пароля
 document.getElementById("forgot-password-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -95,7 +99,6 @@ document.getElementById("forgot-password-form")?.addEventListener("submit", asyn
     }
 });
 
-// Сброс пароля
 document.getElementById("reset-password-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -128,7 +131,6 @@ document.getElementById("reset-password-form")?.addEventListener("submit", async
     }
 });
 
-// Чат
 if (document.getElementById("chat-form")) {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -152,10 +154,17 @@ if (document.getElementById("chat-form")) {
     const chatList = document.getElementById("chat-list");
     const chatTitle = document.getElementById("chat-title");
 
-    let currentChat = { type: "private", id: null }; // Текущий чат: { type: "private", id: number }
+    let currentChat = { type: "private", id: null };
+    let isSwitchingChat = false;
+    let lastUnreadDivider = null; // Отслеживаем последний разделитель
 
-    // Загрузка списка личных чатов
-    async function loadPrivateChats() {
+    if (Notification.permission !== "granted") {
+        Notification.requestPermission();
+    }
+
+    const notificationSound = new Audio("/static/notification.mp3");
+
+    async function loadPrivateChats(autoSwitch = true) {
         try {
             const response = await fetch("/private-chats", {
                 method: "GET",
@@ -166,12 +175,12 @@ if (document.getElementById("chat-form")) {
             });
             const result = await response.json();
             if (response.ok) {
+                chatList.innerHTML = "";
                 result.chats.forEach(chat => {
                     const otherUser = chat.user1 === username ? chat.user2 : chat.user1;
-                    addChatToList("private", chat.id, otherUser);
+                    addChatToList("private", chat.id, otherUser, chat.unread_count);
                 });
-                // Если есть чаты, переключаемся на первый
-                if (result.chats.length > 0) {
+                if (autoSwitch && result.chats.length > 0) {
                     const firstChat = result.chats[0];
                     const otherUser = firstChat.user1 === username ? firstChat.user2 : firstChat.user1;
                     switchChat("private", firstChat.id, otherUser);
@@ -184,10 +193,9 @@ if (document.getElementById("chat-form")) {
         }
     }
 
-    // Добавление чата в список
-    function addChatToList(type, id, name) {
+    function addChatToList(type, id, name, unreadCount = 0) {
         const existingChat = chatList.querySelector(`[data-chat-id="${id}"][data-chat-type="${type}"]`);
-        if (existingChat) return; // Чат уже есть в списке
+        if (existingChat) return;
 
         const div = document.createElement("div");
         div.className = "group-item";
@@ -195,31 +203,64 @@ if (document.getElementById("chat-form")) {
         div.setAttribute("data-chat-id", id);
         div.innerHTML = `
             <span class="group-name">${name}</span>
-            <span class="unread-count">0</span>
+            <span class="unread-count">${unreadCount}</span>
         `;
         div.addEventListener("click", () => switchChat(type, id, name));
         chatList.appendChild(div);
+        updateUnreadCount(id, unreadCount);
     }
 
-    // Переключение чата
+    function updateUnreadCount(chatId, count) {
+        const chatItem = chatList.querySelector(`[data-chat-id="${chatId}"]`);
+        if (chatItem) {
+            const unreadSpan = chatItem.querySelector(".unread-count");
+            unreadSpan.textContent = count;
+            unreadSpan.style.display = count > 0 ? "inline-block" : "none";
+            console.log(`Обновлен счетчик для чата ${chatId}: ${count}`);
+        }
+    }
+
+    async function markMessagesAsRead(chatId) {
+        try {
+            const response = await fetch(`/mark-messages-read/${chatId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                },
+            });
+            if (response.ok) {
+                updateUnreadCount(chatId, 0); // Обновляем счетчик непрочитанных
+                console.log(`Сообщения в чате ${chatId} помечены как прочитанные`);
+            } else {
+                console.error("Ошибка при обновлении статуса прочитанных сообщений:", await response.json());
+            }
+        } catch (error) {
+            console.error("Ошибка при вызове mark-messages-read:", error);
+        }
+    }
+
     async function switchChat(type, id, name) {
+        if (isSwitchingChat) return;
+        isSwitchingChat = true;
+
         currentChat = { type, id };
         chatTitle.textContent = name;
 
-        // Удаляем класс active у всех чатов
         document.querySelectorAll(".group-item").forEach(item => item.classList.remove("active"));
-        // Добавляем класс active к текущему чату
         const activeChatItem = chatList.querySelector(`[data-chat-type="${type}"][data-chat-id="${id}"]`);
         activeChatItem.classList.add("active");
 
-        // Очищаем сообщения
         chatMessages.innerHTML = "";
+        lastUnreadDivider = null; // Сбрасываем разделитель
 
-        // Загружаем сообщения
+        // Помечаем сообщения как прочитанные и ждем завершения
+        await markMessagesAsRead(id);
         await loadPrivateMessages(id);
+
+        isSwitchingChat = false;
     }
 
-    // Загрузка личных сообщений
     async function loadPrivateMessages(chatId) {
         try {
             const response = await fetch(`/private-messages/${chatId}`, {
@@ -230,17 +271,51 @@ if (document.getElementById("chat-form")) {
                 },
             });
             const messages = await response.json();
-            messages.forEach((msg) => displayPrivateMessage(msg));
+            chatMessages.innerHTML = ""; // Очищаем сообщения
+            lastUnreadDivider = null; // Сбрасываем разделитель
+
+            // Проверяем, есть ли непрочитанные сообщения
+            const hasUnread = messages.some(msg => msg.sender !== username && msg.is_read === 0);
+            if (hasUnread) {
+                // Если есть непрочитанные сообщения, повторно вызываем mark-messages-read
+                console.log(`Обнаружены непрочитанные сообщения в чате ${chatId}, повторный вызов mark-messages-read`);
+                await markMessagesAsRead(chatId);
+                // Перезагружаем сообщения после обновления статуса
+                const updatedResponse = await fetch(`/private-messages/${chatId}`, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+                messages.length = 0; // Очищаем старые данные
+                messages.push(...(await updatedResponse.json()));
+            }
+
+            messages.forEach((msg) => {
+                console.log(`Сообщение: sender=${msg.sender}, is_read=${msg.is_read}, current_user=${username}`);
+                displayPrivateMessage(msg);
+            });
+            console.log(`Загружено ${messages.length} сообщений для чата ${chatId}`);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         } catch (error) {
             console.error("Ошибка загрузки личных сообщений:", error);
         }
     }
 
-    // Отображение личного сообщения
+    function addUnreadDivider() {
+        if (lastUnreadDivider) return; // Добавляем только один разделитель
+        const divider = document.createElement("div");
+        divider.className = "unread-divider";
+        divider.textContent = "Непрочитанные сообщения";
+        chatMessages.appendChild(divider);
+        lastUnreadDivider = divider;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
     function displayPrivateMessage(msg) {
         const div = document.createElement("div");
         div.className = "chat-message";
-        // Добавляем класс "own-message", если сообщение от текущего пользователя
         if (msg.sender === username) {
             div.classList.add("own-message");
         }
@@ -253,7 +328,6 @@ if (document.getElementById("chat-form")) {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // Поиск пользователей
     async function searchUsers(query) {
         const token = localStorage.getItem("token");
         if (!token) {
@@ -291,7 +365,6 @@ if (document.getElementById("chat-form")) {
         }
     }
 
-    // Отображение результатов поиска
     async function displaySearchResults(users) {
         searchResults.innerHTML = "";
         if (users.length === 0) {
@@ -322,6 +395,7 @@ if (document.getElementById("chat-form")) {
                         const chatId = result.chat_id;
                         addChatToList("private", chatId, otherUser);
                         switchChat("private", chatId, otherUser);
+                        await loadPrivateChats(false);
                     } else {
                         showFlashMessage("Ошибка создания чата: " + result.detail, "danger");
                     }
@@ -336,7 +410,6 @@ if (document.getElementById("chat-form")) {
         searchResults.classList.add("active");
     }
 
-    // Обработчик ввода в поле поиска
     searchInput?.addEventListener("input", (e) => {
         const query = e.target.value.trim();
         if (query.length > 0) {
@@ -346,14 +419,12 @@ if (document.getElementById("chat-form")) {
         }
     });
 
-    // Скрываем dropdown при клике вне его
     document.addEventListener("click", (e) => {
         if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
             searchResults.classList.remove("active");
         }
     });
 
-    // WebSocket события
     ws.onopen = () => {
         console.log("WebSocket подключен");
         loadPrivateChats();
@@ -361,8 +432,32 @@ if (document.getElementById("chat-form")) {
 
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        if ("chat_id" in msg && currentChat.type === "private" && currentChat.id === msg.chat_id) {
-            displayPrivateMessage(msg);
+        if ("chat_id" in msg) {
+            console.log(`Сообщение: sender=${msg.sender}, is_read=${msg.is_read}, current_user=${username}`);
+            if (currentChat.type === "private" && currentChat.id === msg.chat_id) {
+                if (msg.sender !== username && msg.is_read === 0 && !lastUnreadDivider) {
+                    addUnreadDivider();
+                }
+                displayPrivateMessage(msg);
+                // Помечаем сообщение как прочитанное
+                markMessagesAsRead(currentChat.id);
+            }
+            if (msg.sender !== username && currentChat.id !== msg.chat_id) {
+                const chatItem = chatList.querySelector(`[data-chat-id="${msg.chat_id}"]`);
+                if (chatItem) {
+                    const unreadSpan = chatItem.querySelector(".unread-count");
+                    let count = parseInt(unreadSpan.textContent) || 0;
+                    count += 1;
+                    updateUnreadCount(msg.chat_id, count);
+                }
+                if (document.hidden && Notification.permission === "granted") {
+                    new Notification(`${msg.sender}`, {
+                        body: msg.content,
+                        icon: "/static/favicon.ico"
+                    });
+                    notificationSound.play().catch(err => console.error("Ошибка воспроизведения звука:", err));
+                }
+            }
         }
     };
 
@@ -370,20 +465,23 @@ if (document.getElementById("chat-form")) {
         console.log("WebSocket отключен");
     };
 
-    // Отправка сообщения
-    chatForm.addEventListener("submit", (e) => {
+    chatForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const content = messageInput.value.trim();
         if (content && currentChat.id !== null) {
             const message = { chat_id: currentChat.id, username, content };
             ws.send(JSON.stringify(message));
             messageInput.value = "";
+    
+            // Вызываем эндпоинт для обновления is_read
+            await markMessagesAsRead(currentChat.id);
+            lastUnreadDivider?.remove();
+            lastUnreadDivider = null;
         } else {
             showFlashMessage("Выберите чат для отправки сообщения", "danger");
         }
     });
 
-    // Выход из аккаунта
     document.getElementById("logout-btn").addEventListener("click", async () => {
         try {
             await fetch("/logout", {
@@ -397,7 +495,6 @@ if (document.getElementById("chat-form")) {
         }
     });
 
-    // Очистка истории
     document.getElementById("clear-history-btn").addEventListener("click", async () => {
         if (currentChat.id === null) {
             showFlashMessage("Выберите чат для очистки истории", "danger");
@@ -414,6 +511,8 @@ if (document.getElementById("chat-form")) {
             const result = await response.json();
             if (response.ok) {
                 chatMessages.innerHTML = "";
+                lastUnreadDivider = null; // Сбрасываем разделитель
+                updateUnreadCount(currentChat.id, 0);
                 showFlashMessage(result.message, "success");
             } else {
                 showFlashMessage(result.detail, "danger");
